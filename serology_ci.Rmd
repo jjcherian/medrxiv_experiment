@@ -55,7 +55,7 @@ To understand why, consider what happens when you flip a coin 10 times. If you d
 
 Applying this analogy to our assessment of test sensitivity, observing that the test is $99.4\%$ accurate for truly negative patients doesn't mean the test is actually $99.4\%$ accurate, but how wrong can we be? To answer this question, we're going to use a really convenient and easy-to-use technique known as the bootstrap.
 
-Applying the bootstrap allows us to simulate what might happen if we were to run another negative control for the test with 401 samples. To understand how and why it works, I'd suggest reading [something](https://fillmein.com). I'll provide a brief summary of what the bootstrap is doing below, but it probably won't (and frankly shouldn't) convince you completely. And if you're not interested skip past this section, the rest of this document should still make sense!
+Applying the bootstrap allows us to simulate what might happen if we were to run another negative control for the test with 401 samples. I'll provide a brief summary of what the bootstrap is doing below, but it probably won't (and frankly shouldn't) convince you completely. And if you're not interested skip past this section, the rest of this document should still make sense!
 
 ## Bootstrap Overview
 
@@ -102,34 +102,15 @@ renderPlot({
 }))
 )
 
-
-
-
 ```
+In the widget above, note that as you collect more tosses in the initial sample, the bootstrap distribution concentrates upon the chosen proportion of heads in the sample (i.e., there's less uncertainty about the true rate at which the coin turns up heads). If the graph looks stretched or renders weirdly, just resize your window a bit and things seem to adjust.
 
-Why does this make any sense? In statistical terms, what we're doing really is sampling from the empirical distribution (rather than the true probability distribution), but it turns out that this is a pretty good approximation. See van der Vaart's book on Asymptotic Statistics if you want a proof of the asymptotic accuracy of this test. 
+Why does this make any sense? In statistical terms, what we're doing really is sampling from the empirical distribution (rather than the true probability distribution), but it turns out that this is a pretty good approximation. For more information about the bootstrap, Prof. Brad Efron at Stanford University (inventor of the bootstrap) has a very nice book (with Prof. Robert Tibshirani) aptly titled [*An Introduction to the Bootstrap*](https://www.amazon.com/Introduction-Bootstrap-Monographs-Statistics-Probability/dp/0412042312).
+
+There are some limitations to the bootstrap as you might expect. Generally speaking, we want the data to be independent and identically distributed (i.i.d.). In our simple example, this is equivalent to saying that each coin toss was done with the same type of coin and performed in a manner such that each toss is independent of the prior one. 
 
 ## Test Specificity
-
-
-
-```{r eruptions, echo=FALSE}
-inputPanel(
-  selectInput("n_breaks", label = "Number of bins:",
-              choices = c(10, 20, 35, 50), selected = 20),
-  
-  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
-              min = 0.2, max = 2, value = 1, step = 0.2)
-)
-
-renderPlot({
-  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
-       xlab = "Duration (minutes)", main = "Geyser eruption duration")
-  
-  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
-  lines(dens, col = "blue")
-})
-```
+OK, so can we use the bootstrap to assess our uncertainty regarding 
 
 ## Embedded Application
 
