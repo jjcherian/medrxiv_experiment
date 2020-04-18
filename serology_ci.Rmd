@@ -107,29 +107,199 @@ In the widget above, note that as you collect more tosses in the initial sample,
 
 Why does this make any sense? In statistical terms, what we're doing really is sampling from the empirical distribution (rather than the true probability distribution), but it turns out that this is a pretty good approximation. For more information about the bootstrap, Prof. Brad Efron at Stanford University (inventor of the bootstrap) has a very nice book (with Prof. Robert Tibshirani) aptly titled [*An Introduction to the Bootstrap*](https://www.amazon.com/Introduction-Bootstrap-Monographs-Statistics-Probability/dp/0412042312).
 
-There are some limitations to the bootstrap as you might expect. Generally speaking, we want the data to be independent and identically distributed (i.i.d.). In our simple example, this is equivalent to saying that each coin toss was done with the same type of coin and performed in a manner such that each toss is independent of the prior one. 
+There are some limitations to the bootstrap as you might expect. Generally speaking, we want the data to be independent and identically distributed (i.i.d.). In our simple example, this is equivalent to saying that each coin toss was done with the same type of coin and performed in a manner such that each toss is independent of the prior one. The other limitation of the bootstrap is that not every statistic can be easily bootstrapped. While the probability of a coin turning up heads is a statistic that we can use the bootstrap for, really complicated statistics such as those related to phylogenetic trees require special treatment: simply recomputing them on each bootstrap sample isn't good enough to quantify our uncertainty.
 
-## Test Specificity
-OK, so can we use the bootstrap to assess our uncertainty regarding 
-
-## Embedded Application
-
-It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
-
-```{r tabsets, echo=FALSE}
-shinyAppDir(
-  system.file("examples/06_tabsets", package = "shiny"),
-  options = list(
-    width = "100%", height = 550
-  )
+## Test Specificity and Sensitivity
+OK, so can we use the bootstrap to assess our uncertainty regarding our estimates of the test's accuracy. The following widgets compute the bootstrap distribution for each scenario outlined by the paper's authors for the test's sensitivity and specificity. We use the author's definitions of each scenario (in the main text as well as the statistical appendix). Roughly speaking, Scenario 1 corresponds to only using the internally collected Stanford controls, Scenario 2 only uses the manufacturer controls, and Scenario 3 combines both data sets. Because Stanford sees no false positives on their internally collected negative control, we can't really use the bootstrap to compute the specificity confidence intervals for Scenario 1. Note that the interval they compute in this scenario is exceptionally wide ($90.5-100\%$).
+```{r sensitivity, echo=FALSE, warning=FALSE}
+require(ggplot2)
+sidebarLayout(
+sidebarPanel(
+  selectInput("scenario_name_sens", label = "Scenario:",
+              choices = c("Scenario 1", "Scenario 2", "Scenario 3"), selected = "Scenario 3"),
+  sliderInput("n_samples_sens", label = "Number of bootstrap samples",
+              min = 0, max = 10000, value = 500, step = 100)
+),
+mainPanel(
+renderPlot({
+  sens = c()
+  if (input$scenario_name_sens == "Scenario 2") {
+    for (i in 1:25) {
+      sens = c(sens, 1)
+    }
+    for (i in 26:37) {
+      sens = c(sens, 0)
+    }
+  }
+  if (input$scenario_name_sens == "Scenario 1") {
+    for (i in 1:78) {
+      sens = c(sens, 1)
+    }
+    for (i in 79:85) {
+      sens = c(sens, 0)
+    }
+  }
+  if (input$scenario_name_sens == "Scenario 3") {
+    for (i in 1:103) {
+      sens = c(sens, 1)
+    }
+    for (i in 104:122) {
+      sens = c(sens, 0)
+    }
+  }
+  
+  probs = c()
+  for (i in 1:input$n_samples_sens) {
+    outputs = sample(sens, length(sens), replace=TRUE)
+    probs = c(probs, mean(outputs))
+  }
+  
+  to_plot = data.frame(probs)
+  plot = ggplot(to_plot, aes(x=probs)) + geom_histogram(aes(y=..ncount..)) + geom_density(color='orange', aes(y=..scaled..))
+  plot + labs(x="Sensitivity", y='') + theme_grey(base_size=24)
+}))
 )
+
 ```
 
-Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
+```{r specificity, echo=FALSE, warning=FALSE}
+require(ggplot2)
+sidebarLayout(
+sidebarPanel(
+  selectInput("scenario_name_spec", label = "Scenario:",
+              choices = c("Scenario 1", "Scenario 2", "Scenario 3"), selected = "Scenario 3"),
+  sliderInput("n_samples_spec", label = "Number of bootstrap samples",
+              min = 0, max = 10000, value = 500, step = 100)
+),
+mainPanel(
+renderPlot({
+  specs = c()
+  sens = c()
+  if (input$scenario_name_spec == "Scenario 2") {
+  }
+  if (input$scenario_name_spec == "Scenario 1") {
+    for (i in 1:369) {
+      specs = c(specs, 1)
+    }
+    for (i in 370:371) {
+      specs = c(specs, 0)
+    }
+    
+  }
+  if (input$scenario_name_spec == "Scenario 3") {
+    for (i in 1:399) {
+      specs = c(specs, 1)
+    }
+    for (i in 400:401) {
+      specs = c(specs, 0)
+    }
+  }
+  
+  probs = c()
+  for (i in 1:input$n_samples_spec) {
+    outputs = sample(specs, length(specs), replace=TRUE)
+    probs = c(probs, mean(outputs))
+  }
+  
+  to_plot = data.frame(probs)
+  plot = ggplot(to_plot, aes(x=probs)) + geom_histogram(aes(y=..ncount..), bins=10) + geom_density(color='orange', aes(y=..scaled..))
+  plot + labs(x="Specificity", y='') + theme_grey(base_size=24)
+})))
 
-You can also use the `shinyApp` function to define an application inline rather then in an external directory.
+```
 
-In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
+# Simulating the Antibody Study
+
+```{r stanford, echo=FALSE, warning=FALSE}
+require(ggplot2)
+sidebarLayout(
+sidebarPanel(
+  selectInput("scenario_name_final", label = "Scenario:",
+              choices = c("Scenario 1", "Scenario 2", "Scenario 3"), selected = "Scenario 3"),
+  sliderInput("n_samples_final", label = "Number of bootstrap samples for study",
+              min = 0, max = 10000, value = 100, step = 100)
+),
+mainPanel(
+renderPlot({
+  sens = c()
+  specs = c()
+  if (input$scenario_name_final == "Scenario 2") {
+  }
+  if (input$scenario_name_final == "Scenario 1") {
+    for (i in 1:369) {
+      specs = c(specs, 1)
+    }
+    for (i in 370:371) {
+      specs = c(specs, 0)
+    }
+    for (i in 1:78) {
+      sens = c(sens, 1)
+    }
+    for (i in 79:85) {
+      sens = c(sens, 0)
+    }
+  }
+  if (input$scenario_name_final == "Scenario 3") {
+    for (i in 1:399) {
+      specs = c(specs, 1)
+    }
+    for (i in 400:401) {
+      specs = c(specs, 0)
+    }
+    for (i in 1:103) {
+      sens = c(sens, 1)
+    }
+    for (i in 104:122) {
+      sens = c(sens, 0)
+    }
+  }
+  
+  p_specs = c()
+  for (i in 1:100) {
+    outputs = sample(specs, length(specs), replace=TRUE)
+    p_specs = c(p_specs, mean(outputs))
+  }
+  
+  p_sens = c()
+  for (i in 1:100) {
+    outputs = sample(sens, length(sens), replace=TRUE)
+    p_sens = c(p_sens, mean(outputs))
+  }
+  
+  
+  study = c()
+  for (i in 1:50) {
+    study = c(study, 1)
+  }
+  for (i in 51:3330) {
+    study = c(study, 0)
+  }
+  
+  study_prevs = c()
+  for (i in 1:input$n_samples_final) {
+    outputs = sample(study, length(study), replace=TRUE)
+    for (j in 1:1) {
+      p_sen = 0.704 # p_sens[j]
+      for (k in 1:100) {
+        p_spec = p_specs[k]
+        obs_prevalence = mean(outputs)
+        if (1 - p_spec > obs_prevalence) {
+          study_prevs = c(study_prevs, 0)
+        }
+        else {
+          study_prevs = c(study_prevs, (obs_prevalence + p_spec - 1) / (p_sens + p_spec - 1))
+        }
+      }
+    }
+  }
+  
+  to_plot = data.frame(study_prevs)
+  plot = ggplot(to_plot, aes(x=study_prevs)) + geom_histogram(aes(y=..ncount..), bins=30) + geom_density(color='orange', aes(y=..scaled..))
+  plot + labs(x="Sample Prevalence", y='') + theme_grey(base_size=24)
+})))
+
+```
+
 
 
 
