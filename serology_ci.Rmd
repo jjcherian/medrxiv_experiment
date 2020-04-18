@@ -1,0 +1,154 @@
+---
+title: "Confidence Intervals and Serology Tests"
+author: "John Cherian"
+date: "4/18/2020"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    number_sections: true
+    keep_md: true
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Since this Twitter [thread](https://twitter.com/jjcherian/status/1251272333177880576) I wrote about Stanford's [antibody testing](https://www.medrxiv.org/content/10.1101/2020.04.14.20062463v1) has gotten a fair amount of attention, I wanted to make sure I showed my work. If you don't care about the explanation and just want to watch some simulations go brrrr, skip to Section 4.
+
+# Introduction
+Before we can figure out how to set up a simulation that will give us confidence intervals on the prevalence of COVID-19 in the Stanford study's population, I want to make sure we're all on the same page about the parameters that will affect our final uncertainty: test sensitivity, test specificity, and the study's size.
+
+## Test Sensitivity
+
+The sensitivity of a test, which we'll denote as $p_{se}$ measures the rate at which the test will accurately detect true positives. In other words, if I was a patient who COVID-19 antibodies, the sensitivity tells me the probability that the test will return a positive result. (Sensitivity = 1 - false negative rate)
+
+$$ \begin{align} p_{se} &= \frac{\text{Patients who have COVID-19 AND test positive}}{\text{Patients who have COVID-19}} \\ \\
+ &= 1 - \frac{\text{Patients who have COVID-19 and test negative}}{\text{Patients who have COVID-19}} \\ \\
+ &= 1 - \text{False Negative Rate} \end{align} $$
+ 
+## Test Specificity
+
+The specificity of a test, which we'll known as $p_{sp}$ measures the rate at which the test will accurately detect true negatives. Equivalently, if I'm a healthy patient who does not currently have any antibodies, the specificity tells me the probability that the test will accurately return a negative result. 
+
+$$ \begin{align} p_{se} &= \frac{\text{Patients who do not have COVID-19 AND test negative}}{\text{Patients who do not have COVID-19}} \\ \\
+ &= 1 - \frac{\text{Patients who do not have COVID-19 and test positive}}{\text{Patients who do not have COVID-19}} \\ \\
+ &= 1 - \text{False Positive Rate} \end{align} $$
+ 
+## Study Size
+
+OK, I think everyone know what this means. It's just the number of people in the study. As we'll get into in the next section, more people generally means more certain results. Stanford's has 3330 individuals, which is quite high for an antibody study, but many of the studies floating around are based off of just a few hundred samples obtained through questionable means. 
+
+NOTE: a lot of people on Twitter and elsewhere have discussed the self-selection of patients in most of these samples. That is, the people who sign up to be tested are likely people who are suspicious that they have already had the disease. I'm not an epidemiologist, and I'm not sure how to assess the effect of this kind of sampling bias systematically, but anecdotally, it seems very plausible to me and likely makes all of the error bars calculated in this document far wider.
+
+# Estimation and Uncertainty
+In the sections above, I defined some quantities we'd like to estimate, namely the specificity and sensitivity, but how do we actually compute these quantities?
+
+## What uncertainty?
+Let's use the specificity of the Stanford-run test as an example. The paper notes that "a sample of 30 pre-COVID samples from hip surgery patients were also tested, and all 30 were negative....[and] Among 371 pre-COVID samples, 369 were negative." The first source of data comes from Stanford's own assessment of the test's sensitivity, and the second source of sensitivity calculations comes from the test kit manufacturer. 
+
+We can then compute a naive estimate of the test specificity by simply plugging the data collected into the formula for the sensitivity we got above $\hat{p}_{se} = \frac{30 + 369}{30 + 371} \approx 0.994$. Does this mean that the test is $99.4\%$ accurate for patients who don't have antibodies? Not exactly! 
+
+To understand why, consider what happens when you flip a coin 10 times. If you do it, you might get 5 heads exactly, but you'll almost as often get 4 heads or 6 heads. So, if I asked you to flip the quarter in your wallet 10 times and you ended up getting 6 heads, you wouldn't immediately conclude that the coin was unfair! The naive estimate of the probability of heads isn't perfect; we naturally recognize that is very possible that the true probability of the coin coming up heads is still very plausibly $0.5$. In more rigorous terms, probabilities measure long-run frequencies of how often an event occurs. That is, $p_{heads} = 0.5$ means that if I flipped that coin an infinite number of times, I'll see heads half the time, but it doesn't mean I'll see 5 heads in 10 flips.
+
+Applying this analogy to our assessment of test sensitivity, observing that the test is $99.4\%$ accurate for truly negative patients doesn't mean the test is actually $99.4\%$ accurate, but how wrong can we be? To answer this question, we're going to use a really convenient and easy-to-use technique known as the bootstrap.
+
+Applying the bootstrap allows us to simulate what might happen if we were to run another negative control for the test with 401 samples. To understand how and why it works, I'd suggest reading [something](https://fillmein.com). I'll provide a brief summary of what the bootstrap is doing below, but it probably won't (and frankly shouldn't) convince you completely. And if you're not interested skip past this section, the rest of this document should still make sense!
+
+## Bootstrap Overview
+
+The bootstrap *resamples* the observations we've already collected. Let's take our coin flip example again. Let's say we observe the following set of outcomes:
+$$[\text{H T H T T H T T T H}] $$
+A bootstrap sample of that data set resamples the original sets of tails and heads *with replacement*. If we sampled without replacement, we'd just keep getting the original data set back. But because we sample with replacement, our samples could contain as many as 10 heads or 0 heads (though both of those outcomes, as you might imagine are unlikely). For each of these $b$ bootstrap samples, I can compute $$\hat{p}^b_{h} = \frac{\text{# of tosses that are H in bootstrap sample b}}{\text{# of tosses in bootstrap sample b}}$$, and plotting the histogram of those estimates gives me a good estimate of how likely different probabilities of heads are given the observations we initially collected.
+
+To make this example concrete, I made a Shiny widget where you can describe the sample collected and I'll plot the bootstrap distribution over plausible estimates of the probability that the coin comes up heads. 
+```{r coins, echo=FALSE, warning=FALSE}
+require(ggplot2)
+sidebarLayout(
+sidebarPanel(
+  sliderInput("p_heads", label = "Proportion of heads in sample:",
+              min = 0, max = 1, value = 0.5, step=0.05),
+  
+  sliderInput("n_tosses", label = "Number of coin tosses:",
+              min = 0, max = 1000, value = 50, step = 1),
+  
+  sliderInput("n_samples", label = "Number of bootstrap samples:",
+              min = 100, max = 10000, value = 500, step = 100)
+),
+mainPanel(
+renderPlot({
+  input_data = c()
+  n_heads = round(input$p_heads * input$n_tosses)
+  n_tails = input$n_tosses - n_heads
+  for (i in 1:n_heads) {
+    input_data = c(input_data, 1)
+  }
+
+    for (i in 1:n_tails) {
+    input_data = c(input_data, 0)
+  }
+  
+  probs = c()
+  for (i in 1:input$n_samples) {
+    outputs = sample(input_data, input$n_tosses, replace=TRUE)
+    probs = c(probs, mean(outputs))
+  }
+  
+  to_plot = data.frame(probs)
+  plot = ggplot(to_plot, aes(x=probs)) + geom_histogram(aes(y=..ncount..)) + geom_density(color='orange', aes(y=..scaled..))
+  plot + labs(x="Probability", y='') + theme_grey(base_size=24)
+}))
+)
+
+
+
+
+```
+
+Why does this make any sense? In statistical terms, what we're doing really is sampling from the empirical distribution (rather than the true probability distribution), but it turns out that this is a pretty good approximation. See van der Vaart's book on Asymptotic Statistics if you want a proof of the asymptotic accuracy of this test. 
+
+## Test Specificity
+
+
+
+```{r eruptions, echo=FALSE}
+inputPanel(
+  selectInput("n_breaks", label = "Number of bins:",
+              choices = c(10, 20, 35, 50), selected = 20),
+  
+  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
+              min = 0.2, max = 2, value = 1, step = 0.2)
+)
+
+renderPlot({
+  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
+       xlab = "Duration (minutes)", main = "Geyser eruption duration")
+  
+  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
+  lines(dens, col = "blue")
+})
+```
+
+## Embedded Application
+
+It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+
+```{r tabsets, echo=FALSE}
+shinyAppDir(
+  system.file("examples/06_tabsets", package = "shiny"),
+  options = list(
+    width = "100%", height = 550
+  )
+)
+```
+
+Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
+
+You can also use the `shinyApp` function to define an application inline rather then in an external directory.
+
+In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
+
+
+
